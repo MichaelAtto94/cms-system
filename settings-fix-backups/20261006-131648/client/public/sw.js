@@ -1,0 +1,5 @@
+// Cache only the public shell. Never cache API data, uploaded documents or exported reports.
+const CACHE='cms-shell-v1';
+self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(['/','/manifest.webmanifest','/icon.svg']))));
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))));
+self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==location.origin||url.pathname.startsWith('/api'))return;if(event.request.mode==='navigate'){event.respondWith(fetch(event.request).catch(()=>caches.match('/')));return}if(url.pathname.startsWith('/assets/')||['/icon.svg','/manifest.webmanifest'].includes(url.pathname)){event.respondWith(caches.open(CACHE).then(async cache=>{const old=await cache.match(event.request);if(old)return old;const r=await fetch(event.request);if(r.ok)await cache.put(event.request,r.clone());return r}))}});

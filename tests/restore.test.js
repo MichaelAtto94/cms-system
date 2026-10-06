@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import {execFile} from 'node:child_process';import {promisify} from 'node:util';import {PGlite} from '@electric-sql/pglite';
+test('Backup restore preserves group scopes, permission arrays and membership',async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'cms-restore-')),source=path.join(root,'snapshot'),target=path.join(root,'restored');fs.mkdirSync(source);
+ const snapshot={institutions:[{id:'t',name:'Test institution',settings:{}}],users:[{id:'u',tenant:'t',name:'Member',email:'member@example.com',password:'test-hash',role:'MEMBER'}],committees:[{id:'c',tenant:'t',name:'Finance',type:'Finance',tor:'Budget review',seats:3,term_months:12}],access_groups:[{id:'g',tenant:'t',name:'Finance readers',description:'Restored access',enabled:true,all_committees:false,committee_ids:['c'],permissions:['committee.read','reports.export']}],access_group_members:[{tenant:'t',group_id:'g',user_id:'u'}]};
+ fs.writeFileSync(path.join(source,'database.json'),JSON.stringify(snapshot));let db;
+ try{await promisify(execFile)(process.execPath,['scripts/restore.js',source],{env:{...process.env,DATA_DIR:target,DATABASE_URL:''},timeout:90000});db=new PGlite(path.join(target,'postgres'));const group=(await db.query("SELECT * FROM access_groups WHERE id='g'")).rows[0];assert.deepEqual(group.permissions,['committee.read','reports.export']);assert.deepEqual(group.committee_ids,['c']);assert.equal((await db.query('SELECT * FROM access_group_members')).rows[0].user_id,'u')}
+ finally{if(db)await db.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:10,retryDelay:100})}
+});

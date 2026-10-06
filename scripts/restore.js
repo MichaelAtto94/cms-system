@@ -1,0 +1,11 @@
+import 'dotenv/config';
+import fs from 'node:fs';
+import path from 'node:path';
+import {query,transaction,init,close,tables,dataDir} from '../server/db.js';
+const source=process.argv[2];if(!source)throw Error('Usage: node scripts/restore.js backups/SNAPSHOT');
+await init();
+if((await query('SELECT id FROM institutions LIMIT 1')).rows.length)throw Error('Restore requires an empty database. Stop the application and choose a new DATA_DIR.');
+const data=JSON.parse(fs.readFileSync(path.join(source,'database.json'),'utf8'));
+await transaction(async q=>{for(const table of tables){for(const row of data[table]||[]){const cols=Object.keys(row);if(cols.some(c=>!/^\w+$/.test(c)))throw Error('Invalid column');await q(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${cols.map((_,i)=>'$'+(i+1)).join(',')})`,cols.map(c=>Array.isArray(row[c])?JSON.stringify(row[c]):row[c]));}}});
+if(fs.existsSync(path.join(source,'documents')))fs.cpSync(path.join(source,'documents'),path.join(dataDir,'documents'),{recursive:true});
+await close();console.log('Restored snapshot. Keep the original JWT_SECRET or generate a new one to require fresh sign-in.');

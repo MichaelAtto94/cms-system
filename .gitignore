@@ -1,0 +1,15 @@
+node_modules/
+dist/
+data/
+.env
+backups/
+
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+data/
+backups/
+*-upgrade-backups/
+login-gradient-backups/
